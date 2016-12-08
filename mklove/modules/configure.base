@@ -1029,7 +1029,7 @@ function mkl_lib_check {
 	libs=$(mkl_lib_check_static "${staticopt#*=}" "$libs")
     fi
 
-    if ! mkl_compile_check "$1" "$2" "$3" "$4" "$libs" "$6"; then
+    if ! mkl_compile_check "$1" "$2" "$3" "$4" "$LIBS $libs" "$6"; then
         return 1
     fi
 

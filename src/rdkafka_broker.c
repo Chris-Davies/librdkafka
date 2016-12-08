@@ -2470,7 +2470,7 @@ static int rd_kafka_compress_MessageSet_buf (rd_kafka_broker_t *rkb,
 #endif
 #if WITH_SNAPPY
 	int    siovlen = 1;
-	struct snappy_env senv;
+	struct RDsnappy_env senv;
 #endif
 	struct iovec siov;
 #if WITH_ZLIB
@@ -2574,15 +2574,15 @@ static int rd_kafka_compress_MessageSet_buf (rd_kafka_broker_t *rkb,
 #if WITH_SNAPPY
 	case RD_KAFKA_COMPRESSION_SNAPPY:
 		/* Initialize snappy compression environment */
-		snappy_init_env_sg(&senv, 1/*iov enable*/);
+		RDsnappy_init_env_sg(&senv, 1/*iov enable*/);
 
 		/* Calculate maximum compressed size and
 		 * allocate an output buffer accordingly. */
-		siov.iov_len = snappy_max_compressed_length(MessageSetSize);
+		siov.iov_len = RDsnappy_max_compressed_length(MessageSetSize);
 		siov.iov_base = rd_malloc(siov.iov_len);
 
 		/* Compress each message */
-		if ((r = snappy_compress_iov(&senv,
+		if ((r = RDsnappy_compress_iov(&senv,
 					     &rkbuf->
 					     rkbuf_iov[iov_firstmsg],
 					     rkbuf->rkbuf_msg.
@@ -2606,7 +2606,7 @@ static int rd_kafka_compress_MessageSet_buf (rd_kafka_broker_t *rkb,
 		}
 
 		/* rd_free snappy environment */
-		snappy_free_env(&senv);
+		RDsnappy_free_env(&senv);
 		break;
 #endif
 
@@ -3357,7 +3357,7 @@ static void rd_kafka_broker_producer_serve (rd_kafka_broker_t *rkb) {
  * Decompress Snappy message with Snappy-java framing.
  * Returns a malloced buffer with the uncompressed data, or NULL on failure.
  */
-static char *rd_kafka_snappy_java_decompress (rd_kafka_broker_t *rkb,
+static char *rd_kafka_RDsnappy_java_decompress (rd_kafka_broker_t *rkb,
 					      int64_t Offset,
 					      const char *inbuf,
 					      size_t inlen,
@@ -3395,7 +3395,7 @@ static char *rd_kafka_snappy_java_decompress (rd_kafka_broker_t *rkb,
 			}
 
 			/* Acquire uncompressed length */
-			if (unlikely(!snappy_uncompressed_length(inbuf+of,
+			if (unlikely(!RDsnappy_uncompressed_length(inbuf+of,
 								 clen, &ulen))) {
 				rd_rkb_dbg(rkb, MSG, "SNAPPY",
 					   "Failed to get length of "
@@ -3415,7 +3415,7 @@ static char *rd_kafka_snappy_java_decompress (rd_kafka_broker_t *rkb,
 			}
 
 			/* pass 2: Uncompress to outbuf */
-			if (unlikely((r = snappy_uncompress(inbuf+of, clen,
+			if (unlikely((r = RDsnappy_uncompress(inbuf+of, clen,
 							    outbuf+uof)))) {
 				rd_rkb_dbg(rkb, MSG, "SNAPPY",
 					   "Failed to decompress Snappy-java framed "
@@ -3660,9 +3660,9 @@ rd_kafka_messageset_handle (rd_kafka_broker_t *rkb,
 		{
 			const char *inbuf = Value.data;
 			int r;
-			static const unsigned char snappy_java_magic[] =
+			static const unsigned char RDsnappy_java_magic[] =
 				{ 0x82, 'S','N','A','P','P','Y', 0 };
-			static const int snappy_java_hdrlen = 8+4+4;
+			static const int RDsnappy_java_hdrlen = 8+4+4;
 
 			/* snappy-java adds its own header (SnappyCodec)
 			 * which is not compatible with the official Snappy
@@ -3671,13 +3671,13 @@ rd_kafka_messageset_handle (rd_kafka_broker_t *rkb,
 			 * followed by any number of chunks:
 			 *   4: length
 			 * ...: snappy-compressed data. */
-			if (likely(Value_len > snappy_java_hdrlen + 4 &&
-				   !memcmp(inbuf, snappy_java_magic, 8))) {
+			if (likely(Value_len > RDsnappy_java_hdrlen + 4 &&
+				   !memcmp(inbuf, RDsnappy_java_magic, 8))) {
 				/* snappy-java framing */
 
-				inbuf = inbuf + snappy_java_hdrlen;
-				Value_len -= snappy_java_hdrlen;
-				outbuf = rd_kafka_snappy_java_decompress(rkb,
+				inbuf = inbuf + RDsnappy_java_hdrlen;
+				Value_len -= RDsnappy_java_hdrlen;
+				outbuf = rd_kafka_RDsnappy_java_decompress(rkb,
 									 hdr.Offset,
 									 inbuf,
 									 Value_len,
@@ -3692,7 +3692,7 @@ rd_kafka_messageset_handle (rd_kafka_broker_t *rkb,
 				/* no framing */
 
 				/* Acquire uncompressed length */
-				if (unlikely(!snappy_uncompressed_length(inbuf,
+				if (unlikely(!RDsnappy_uncompressed_length(inbuf,
 									 Value_len,
 									 &outlen))) {
 					rd_rkb_dbg(rkb, MSG, "SNAPPY",
@@ -3710,7 +3710,7 @@ rd_kafka_messageset_handle (rd_kafka_broker_t *rkb,
 				outbuf = rd_malloc(outlen);
 
 				/* Uncompress to outbuf */
-				if (unlikely((r = snappy_uncompress(inbuf,
+				if (unlikely((r = RDsnappy_uncompress(inbuf,
 								    Value_len,
 								    outbuf)))) {
 					rd_rkb_dbg(rkb, MSG, "SNAPPY",

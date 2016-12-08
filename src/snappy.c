@@ -580,11 +580,11 @@ static inline u32 hash(const char *p, int shift)
  *
  * This last factor dominates the blowup, so the final estimate is:
  */
-size_t snappy_max_compressed_length(size_t source_len)
+size_t RDsnappy_max_compressed_length(size_t source_len)
 {
 	return 32 + source_len + source_len / 6;
 }
-EXPORT_SYMBOL(snappy_max_compressed_length);
+EXPORT_SYMBOL(RDsnappy_max_compressed_length);
 
 enum {
 	LITERAL = 0,
@@ -685,14 +685,14 @@ static inline char *emit_copy(char *op, int offset, int len)
 }
 
 /**
- * snappy_uncompressed_length - return length of uncompressed output.
+ * RDsnappy_uncompressed_length - return length of uncompressed output.
  * @start: compressed buffer
  * @n: length of compressed buffer.
  * @result: Write the length of the uncompressed output here.
  *
  * Returns true when successfull, otherwise false.
  */
-bool snappy_uncompressed_length(const char *start, size_t n, size_t * result)
+bool RDsnappy_uncompressed_length(const char *start, size_t n, size_t * result)
 {
 	u32 v = 0;
 	const char *limit = start + n;
@@ -703,7 +703,7 @@ bool snappy_uncompressed_length(const char *start, size_t n, size_t * result)
 		return false;
 	}
 }
-EXPORT_SYMBOL(snappy_uncompressed_length);
+EXPORT_SYMBOL(RDsnappy_uncompressed_length);
 
 /*
  * The size of a compression block. Note that many parts of the compression
@@ -731,7 +731,7 @@ EXPORT_SYMBOL(snappy_uncompressed_length);
  * compression, and if the input is short, we won't need that
  * many hash table entries anyway.
  */
-static u16 *get_hash_table(struct snappy_env *env, size_t input_size,
+static u16 *get_hash_table(struct RDsnappy_env *env, size_t input_size,
 			      int *table_size)
 {
 	unsigned htsize = 256;
@@ -1105,7 +1105,7 @@ static const u16 char_table[256] = {
 	0x1801, 0x0f0a, 0x103f, 0x203f, 0x2001, 0x0f0b, 0x1040, 0x2040
 };
 
-struct snappy_decompressor {
+struct RDsnappy_decompressor {
 	struct source *reader;	/* Underlying source of bytes to decompress */
 	const char *ip;		/* Points to next buffered byte */
 	const char *ip_limit;	/* Points just past buffered bytes */
@@ -1115,7 +1115,7 @@ struct snappy_decompressor {
 };
 
 static void
-init_snappy_decompressor(struct snappy_decompressor *d, struct source *reader)
+init_RDsnappy_decompressor(struct RDsnappy_decompressor *d, struct source *reader)
 {
 	d->reader = reader;
 	d->ip = NULL;
@@ -1124,7 +1124,7 @@ init_snappy_decompressor(struct snappy_decompressor *d, struct source *reader)
 	d->eof = false;
 }
 
-static void exit_snappy_decompressor(struct snappy_decompressor *d)
+static void exit_RDsnappy_decompressor(struct RDsnappy_decompressor *d)
 {
 	skip(d->reader, d->peeked);
 }
@@ -1134,7 +1134,7 @@ static void exit_snappy_decompressor(struct snappy_decompressor *d)
  * On succcess, stores the length in *result and returns true.
  * On failure, returns false.
  */
-static bool read_uncompressed_length(struct snappy_decompressor *d,
+static bool read_uncompressed_length(struct RDsnappy_decompressor *d,
 				     u32 * result)
 {
 	DCHECK(d->ip == NULL);	/*
@@ -1161,13 +1161,13 @@ static bool read_uncompressed_length(struct snappy_decompressor *d,
 	return true;
 }
 
-static bool refill_tag(struct snappy_decompressor *d);
+static bool refill_tag(struct RDsnappy_decompressor *d);
 
 /*
  * Process the next item found in the input.
  * Returns true if successful, false on error or end of input.
  */
-static void decompress_all_tags(struct snappy_decompressor *d,
+static void decompress_all_tags(struct RDsnappy_decompressor *d,
 				struct writer *writer)
 {
 	const char *ip = d->ip;
@@ -1257,7 +1257,7 @@ static void decompress_all_tags(struct snappy_decompressor *d,
 
 #undef MAYBE_REFILL
 
-static bool refill_tag(struct snappy_decompressor *d)
+static bool refill_tag(struct RDsnappy_decompressor *d)
 {
 	const char *ip = d->ip;
 
@@ -1327,10 +1327,10 @@ static bool refill_tag(struct snappy_decompressor *d)
 static int internal_uncompress(struct source *r,
 			       struct writer *writer, u32 max_len)
 {
-	struct snappy_decompressor decompressor;
+	struct RDsnappy_decompressor decompressor;
 	u32 uncompressed_len = 0;
 
-	init_snappy_decompressor(&decompressor, r);
+	init_RDsnappy_decompressor(&decompressor, r);
 
 	if (!read_uncompressed_length(&decompressor, &uncompressed_len))
 		return -EIO;
@@ -1343,13 +1343,13 @@ static int internal_uncompress(struct source *r,
 	/* Process the entire input */
 	decompress_all_tags(&decompressor, writer);
 
-	exit_snappy_decompressor(&decompressor);
+	exit_RDsnappy_decompressor(&decompressor);
 	if (decompressor.eof && writer_check_length(writer))
 		return 0;
 	return -EIO;
 }
 
-static inline int sn_compress(struct snappy_env *env, struct source *reader,
+static inline int sn_compress(struct RDsnappy_env *env, struct source *reader,
 			   struct sink *writer)
 {
 	int err;
@@ -1404,7 +1404,7 @@ static inline int sn_compress(struct snappy_env *env, struct source *reader,
 
 		/* Compress input_fragment and append to dest */
 		char *dest;
-		dest = sink_peek(writer, snappy_max_compressed_length(num_to_read));
+		dest = sink_peek(writer, RDsnappy_max_compressed_length(num_to_read));
 		if (!dest) {
 			/*
 			 * Need a scratch buffer for the output,
@@ -1429,7 +1429,7 @@ out:
 
 #ifdef SG
 
-int snappy_compress_iov(struct snappy_env *env,
+int RDsnappy_compress_iov(struct RDsnappy_env *env,
 			struct iovec *iov_in,
 			int iov_in_len,
 			size_t input_length,
@@ -1454,10 +1454,10 @@ int snappy_compress_iov(struct snappy_env *env,
 	*compressed_length = writer.written;
 	return err;
 }
-EXPORT_SYMBOL(snappy_compress_iov);
+EXPORT_SYMBOL(RDsnappy_compress_iov);
 
 /**
- * snappy_compress - Compress a buffer using the snappy compressor.
+ * RDsnappy_compress - Compress a buffer using the snappy compressor.
  * @env: Preallocated environment
  * @input: Input buffer
  * @input_length: Length of input_buffer
@@ -1467,13 +1467,13 @@ EXPORT_SYMBOL(snappy_compress_iov);
  * Return 0 on success, otherwise an negative error code.
  *
  * The output buffer must be at least
- * snappy_max_compressed_length(input_length) bytes long.
+ * RDsnappy_max_compressed_length(input_length) bytes long.
  *
- * Requires a preallocated environment from snappy_init_env.
+ * Requires a preallocated environment from RDsnappy_init_env.
  * The environment does not keep state over individual calls
  * of this function, just preallocates the memory.
  */
-int snappy_compress(struct snappy_env *env,
+int RDsnappy_compress(struct RDsnappy_env *env,
 		    const char *input,
 		    size_t input_length,
 		    char *compressed, size_t *compressed_length)
@@ -1487,13 +1487,13 @@ int snappy_compress(struct snappy_env *env,
 		.iov_len = 0xffffffff,
 	};
 	int out = 1;
-	return snappy_compress_iov(env, 
+	return RDsnappy_compress_iov(env, 
 				   &iov_in, 1, input_length, 
 				   &iov_out, &out, compressed_length);
 }
-EXPORT_SYMBOL(snappy_compress);
+EXPORT_SYMBOL(RDsnappy_compress);
 
-int snappy_uncompress_iov(struct iovec *iov_in, int iov_in_len,
+int RDsnappy_uncompress_iov(struct iovec *iov_in, int iov_in_len,
 			   size_t input_len, char *uncompressed)
 {
 	struct source reader = {
@@ -1507,32 +1507,32 @@ int snappy_uncompress_iov(struct iovec *iov_in, int iov_in_len,
 	};
 	return internal_uncompress(&reader, &output, 0xffffffff);
 }
-EXPORT_SYMBOL(snappy_uncompress_iov);
+EXPORT_SYMBOL(RDsnappy_uncompress_iov);
 
 /**
- * snappy_uncompress - Uncompress a snappy compressed buffer
+ * RDsnappy_uncompress - Uncompress a snappy compressed buffer
  * @compressed: Input buffer with compressed data
  * @n: length of compressed buffer
  * @uncompressed: buffer for uncompressed data
  *
  * The uncompressed data buffer must be at least
- * snappy_uncompressed_length(compressed) bytes long.
+ * RDsnappy_uncompressed_length(compressed) bytes long.
  *
  * Return 0 on success, otherwise an negative error code.
  */
-int snappy_uncompress(const char *compressed, size_t n, char *uncompressed)
+int RDsnappy_uncompress(const char *compressed, size_t n, char *uncompressed)
 {
 	struct iovec iov = {
 		.iov_base = (char *)compressed,
 		.iov_len = n
 	};
-	return snappy_uncompress_iov(&iov, 1, n, uncompressed);
+	return RDsnappy_uncompress_iov(&iov, 1, n, uncompressed);
 }
-EXPORT_SYMBOL(snappy_uncompress);
+EXPORT_SYMBOL(RDsnappy_uncompress);
 
 #else
 /**
- * snappy_compress - Compress a buffer using the snappy compressor.
+ * RDsnappy_compress - Compress a buffer using the snappy compressor.
  * @env: Preallocated environment
  * @input: Input buffer
  * @input_length: Length of input_buffer
@@ -1542,13 +1542,13 @@ EXPORT_SYMBOL(snappy_uncompress);
  * Return 0 on success, otherwise an negative error code.
  *
  * The output buffer must be at least
- * snappy_max_compressed_length(input_length) bytes long.
+ * RDsnappy_max_compressed_length(input_length) bytes long.
  *
- * Requires a preallocated environment from snappy_init_env.
+ * Requires a preallocated environment from RDsnappy_init_env.
  * The environment does not keep state over individual calls
  * of this function, just preallocates the memory.
  */
-int snappy_compress(struct snappy_env *env,
+int RDsnappy_compress(struct RDsnappy_env *env,
 		    const char *input,
 		    size_t input_length,
 		    char *compressed, size_t *compressed_length)
@@ -1566,20 +1566,20 @@ int snappy_compress(struct snappy_env *env,
 	*compressed_length = (writer.dest - compressed);
 	return err;
 }
-EXPORT_SYMBOL(snappy_compress);
+EXPORT_SYMBOL(RDsnappy_compress);
 
 /**
- * snappy_uncompress - Uncompress a snappy compressed buffer
+ * RDsnappy_uncompress - Uncompress a snappy compressed buffer
  * @compressed: Input buffer with compressed data
  * @n: length of compressed buffer
  * @uncompressed: buffer for uncompressed data
  *
  * The uncompressed data buffer must be at least
- * snappy_uncompressed_length(compressed) bytes long.
+ * RDsnappy_uncompressed_length(compressed) bytes long.
  *
  * Return 0 on success, otherwise an negative error code.
  */
-int snappy_uncompress(const char *compressed, size_t n, char *uncompressed)
+int RDsnappy_uncompress(const char *compressed, size_t n, char *uncompressed)
 {
 	struct source reader = {
 		.ptr = compressed,
@@ -1591,17 +1591,17 @@ int snappy_uncompress(const char *compressed, size_t n, char *uncompressed)
 	};
 	return internal_uncompress(&reader, &output, 0xffffffff);
 }
-EXPORT_SYMBOL(snappy_uncompress);
+EXPORT_SYMBOL(RDsnappy_uncompress);
 #endif
 
-static inline void clear_env(struct snappy_env *env)
+static inline void clear_env(struct RDsnappy_env *env)
 {
     memset(env, 0, sizeof(*env));
 }
 
 #ifdef SG
 /**
- * snappy_init_env_sg - Allocate snappy compression environment
+ * RDsnappy_init_env_sg - Allocate snappy compression environment
  * @env: Environment to preallocate
  * @sg: Input environment ever does scather gather
  *
@@ -1610,9 +1610,9 @@ static inline void clear_env(struct snappy_env *env)
  * Returns 0 on success, otherwise negative errno.
  * Must run in process context.
  */
-int snappy_init_env_sg(struct snappy_env *env, bool sg)
+int RDsnappy_init_env_sg(struct RDsnappy_env *env, bool sg)
 {
-	if (snappy_init_env(env) < 0)
+	if (RDsnappy_init_env(env) < 0)
 		goto error;
 
 	if (sg) {
@@ -1620,20 +1620,20 @@ int snappy_init_env_sg(struct snappy_env *env, bool sg)
 		if (!env->scratch)
 			goto error;
 		env->scratch_output =
-			vmalloc(snappy_max_compressed_length(kblock_size));
+			vmalloc(RDsnappy_max_compressed_length(kblock_size));
 		if (!env->scratch_output)
 			goto error;
 	}
 	return 0;
 error:
-	snappy_free_env(env);
+	RDsnappy_free_env(env);
 	return -ENOMEM;
 }
-EXPORT_SYMBOL(snappy_init_env_sg);
+EXPORT_SYMBOL(RDsnappy_init_env_sg);
 #endif
 
 /**
- * snappy_init_env - Allocate snappy compression environment
+ * RDsnappy_init_env - Allocate snappy compression environment
  * @env: Environment to preallocate
  *
  * Passing multiple entries in an iovec is not allowed
@@ -1641,7 +1641,7 @@ EXPORT_SYMBOL(snappy_init_env_sg);
  * Returns 0 on success, otherwise negative errno.
  * Must run in process context.
  */
-int snappy_init_env(struct snappy_env *env)
+int RDsnappy_init_env(struct RDsnappy_env *env)
 {
     clear_env(env);
 	env->hash_table = vmalloc(sizeof(u16) * kmax_hash_table_size);
@@ -1649,15 +1649,15 @@ int snappy_init_env(struct snappy_env *env)
 		return -ENOMEM;
 	return 0;
 }
-EXPORT_SYMBOL(snappy_init_env);
+EXPORT_SYMBOL(RDsnappy_init_env);
 
 /**
- * snappy_free_env - Free an snappy compression environment
+ * RDsnappy_free_env - Free an snappy compression environment
  * @env: Environment to free.
  *
  * Must run in process context.
  */
-void snappy_free_env(struct snappy_env *env)
+void RDsnappy_free_env(struct RDsnappy_env *env)
 {
 	vfree(env->hash_table);
 #ifdef SG
@@ -1666,4 +1666,4 @@ void snappy_free_env(struct snappy_env *env)
 #endif
 	clear_env(env);
 }
-EXPORT_SYMBOL(snappy_free_env);
+EXPORT_SYMBOL(RDsnappy_free_env);
